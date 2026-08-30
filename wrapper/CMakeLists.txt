@@ -4,6 +4,23 @@ project(qwen3-wrapper LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# --- DLL version info (edit here to bump version) ---
+set(PRODUCT_VERSION "0.0.1")
+set(PRODUCT_NAME "qwen3")
+set(PRODUCT_COPYRIGHT "lookbe")
+
+if(WIN32)
+    string(REPLACE "." ";" _version_list "${PRODUCT_VERSION}")
+    list(GET _version_list 0 VERSION_MAJOR)
+    list(GET _version_list 1 VERSION_MINOR)
+    list(GET _version_list 2 VERSION_PATCH)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/version.rc"
+        @ONLY
+    )
+endif()
+
 set(QWEN_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../qwentts.cpp")
 set(QWEN_SRC_DIR "${QWEN_ROOT}/src")
 
@@ -44,6 +61,7 @@ add_library(qwen3 SHARED
     "${QWEN_SRC_DIR}/qwen.cpp"
     "${QWEN_SRC_DIR}/pipeline-tts.cpp"
     "${QWEN_SRC_DIR}/pipeline-codec.cpp"
+    $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_BINARY_DIR}/version.rc>
 )
 
 # Export symbols
