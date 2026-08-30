@@ -43,15 +43,27 @@ endif()
 # Audio tokenizer tensor names can exceed default GGML_MAX_NAME of 64
 add_compile_definitions(GGML_MAX_NAME=128)
 
-# GGML configuration - build as DLLs
-set(GGML_BACKEND_DL ON CACHE BOOL "Build ggml backends as dynamic libraries" FORCE)
+# GGML configuration.
+# Desktop (Windows/Linux, via build.bat) wants runtime backend dispatch:
+# every backend built as its own DLL/.so, picked at load time. Apple builds
+# (macOS/iOS/iOS Simulator, via build_xcframework.sh) need one self-contained
+# dylib with nothing to sideload, so they skip GGML_BACKEND_DL /
+# GGML_CPU_ALL_VARIANTS / GGML_VULKAN entirely and fall back to ggml's own
+# APPLE defaults (Metal + Accelerate BLAS), linked in statically.
 set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
-set(GGML_CPU_ALL_VARIANTS ON CACHE BOOL "" FORCE)
 set(GGML_CCACHE OFF CACHE BOOL "" FORCE)
 
-# Enable common backends
-option(GGML_CUDA "Build with CUDA support" OFF)
-option(GGML_VULKAN "Build with Vulkan support" ON)
+if(APPLE)
+    option(GGML_CUDA "Build with CUDA support" OFF)
+    option(GGML_VULKAN "Build with Vulkan support" OFF)
+else()
+    set(GGML_BACKEND_DL ON CACHE BOOL "Build ggml backends as dynamic libraries" FORCE)
+    set(GGML_CPU_ALL_VARIANTS ON CACHE BOOL "" FORCE)
+
+    # Enable common backends
+    option(GGML_CUDA "Build with CUDA support" OFF)
+    option(GGML_VULKAN "Build with Vulkan support" ON)
+endif()
 
 add_subdirectory("${QWEN_ROOT}/ggml" "${CMAKE_CURRENT_BINARY_DIR}/ggml")
 
