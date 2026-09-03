@@ -37,6 +37,7 @@ mkdir -p "$BUILD_DIR/mac"
 cd "$BUILD_DIR/mac"
 cmake "$SOURCE_DIR" -DCMAKE_SYSTEM_NAME=Darwin \
             -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
             "${COMMON_FLAGS[@]}"
 cmake --build . --config Release --target qwen3
 
@@ -47,6 +48,7 @@ cd "$BUILD_DIR/ios"
 cmake "$SOURCE_DIR" -DCMAKE_SYSTEM_NAME=iOS \
             -DCMAKE_OSX_SYSROOT=iphoneos \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=17.0 \
             "${COMMON_FLAGS[@]}"
 cmake --build . --config Release --target qwen3
 
@@ -57,6 +59,7 @@ cd "$BUILD_DIR/ios_sim"
 cmake "$SOURCE_DIR" -DCMAKE_SYSTEM_NAME=iOS \
             -DCMAKE_OSX_SYSROOT=iphonesimulator \
             -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=17.0 \
             "${COMMON_FLAGS[@]}"
 cmake --build . --config Release --target qwen3
 
@@ -65,32 +68,65 @@ echo "--- Creating XCFramework ---"
 cd "$PROJECT_DIR"
 rm -rf "$OUTPUT_XCFRAMEWORK"
 
-# Prepare headers directory. qwen.h is the whole public ABI (see its own
-# header comment) — pipeline-tts.h / pipeline-codec.h stay internal.
 mkdir -p "$BUILD_DIR/include"
 cp "$QWEN_HEADER" "$BUILD_DIR/include/"
 
-MAC_DYLIB="$BUILD_DIR/mac/bin/libqwen3.dylib"
-IOS_DYLIB="$BUILD_DIR/ios/bin/libqwen3.dylib"
-IOS_SIM_DYLIB="$BUILD_DIR/ios_sim/bin/libqwen3.dylib"
+create_qwen_framework() {
+    local PLATFORM_DIR="$1"
+    local FW_NAME="Qwen3TTSLib"
+    local FW_DIR="$PLATFORM_DIR/$FW_NAME.framework"
+    local DYLIB="$PLATFORM_DIR/bin/libqwen3.dylib"
+    local MIN_OS="17.0"
+    if [[ "$PLATFORM_DIR" == *"mac"* ]]; then
+        MIN_OS="14.0"
+    fi
 
-# Fix @rpath install names so consumers don't pick up this machine's
-# absolute build path.
-for LIB in "$MAC_DYLIB" "$IOS_DYLIB" "$IOS_SIM_DYLIB"; do
-    chmod +w "$LIB"
-    install_name_tool -id "@rpath/libqwen3.dylib" "$LIB"
-done
+    rm -rf "$FW_DIR"
+    mkdir -p "$FW_DIR/Headers"
+    cp "$DYLIB" "$FW_DIR/$FW_NAME"
+    cp "$BUILD_DIR/include/qwen.h" "$FW_DIR/Headers/"
+    chmod +w "$FW_DIR/$FW_NAME"
+    install_name_tool -id "@rpath/$FW_NAME.framework/$FW_NAME" "$FW_DIR/$FW_NAME"
+    codesign --remove-signature "$FW_DIR/$FW_NAME" || true
 
-# Generate a dSYM per slice so crashes touching libqwen3.dylib can be
-# symbolicated (App Store Connect "Upload Symbols Failed" otherwise).
-dsymutil "$MAC_DYLIB" -o "$MAC_DYLIB.dSYM"
-dsymutil "$IOS_DYLIB" -o "$IOS_DYLIB.dSYM"
-dsymutil "$IOS_SIM_DYLIB" -o "$IOS_SIM_DYLIB.dSYM"
+    cat > "$FW_DIR/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key>
+	<string>$FW_NAME</string>
+	<key>CFBundleIdentifier</key>
+	<string>ai.lookbe.$FW_NAME</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$FW_NAME</string>
+	<key>CFBundlePackageType</key>
+	<string>FMWK</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.0.1</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>MinimumOSVersion</key>
+	<string>$MIN_OS</string>
+</dict>
+</plist>
+EOF
+}
+
+dsymutil "$BUILD_DIR/mac/bin/libqwen3.dylib" -o "$BUILD_DIR/mac/Qwen3TTSLib.framework.dSYM"
+dsymutil "$BUILD_DIR/ios/bin/libqwen3.dylib" -o "$BUILD_DIR/ios/Qwen3TTSLib.framework.dSYM"
+dsymutil "$BUILD_DIR/ios_sim/bin/libqwen3.dylib" -o "$BUILD_DIR/ios_sim/Qwen3TTSLib.framework.dSYM"
+
+create_qwen_framework "$BUILD_DIR/mac"
+create_qwen_framework "$BUILD_DIR/ios"
+create_qwen_framework "$BUILD_DIR/ios_sim"
 
 xcodebuild -create-xcframework \
-    -library "$MAC_DYLIB" -headers "$BUILD_DIR/include" -debug-symbols "$MAC_DYLIB.dSYM" \
-    -library "$IOS_DYLIB" -headers "$BUILD_DIR/include" -debug-symbols "$IOS_DYLIB.dSYM" \
-    -library "$IOS_SIM_DYLIB" -headers "$BUILD_DIR/include" -debug-symbols "$IOS_SIM_DYLIB.dSYM" \
+    -framework "$BUILD_DIR/mac/Qwen3TTSLib.framework" -debug-symbols "$BUILD_DIR/mac/Qwen3TTSLib.framework.dSYM" \
+    -framework "$BUILD_DIR/ios/Qwen3TTSLib.framework" -debug-symbols "$BUILD_DIR/ios/Qwen3TTSLib.framework.dSYM" \
+    -framework "$BUILD_DIR/ios_sim/Qwen3TTSLib.framework" -debug-symbols "$BUILD_DIR/ios_sim/Qwen3TTSLib.framework.dSYM" \
     -output "$OUTPUT_XCFRAMEWORK"
 
 echo "Created $OUTPUT_XCFRAMEWORK"
