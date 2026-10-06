@@ -2,3 +2,4 @@
 /build_xcframework
 /Qwen3TTSLib.xcframework
 .DS_Store
+/wrapper/build_win

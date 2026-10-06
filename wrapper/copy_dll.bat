@@ -5,7 +5,7 @@ setlocal
 :: tobe-said-win\NativeLibs\<Config>\ (the "jniLibs" of the Windows app).
 :: Usage: copy_dll.bat [Debug|RelWithDebInfo]   (default: both)
 
-set BUILD_DIR=%~dp0build\bin
+set BUILD_DIR=%~dp0build_win\bin
 set DEST_ROOT=%~dp0..\..\tobe-said-win\NativeLibs
 set CONFIGS=Debug RelWithDebInfo
 if not "%~1"=="" set CONFIGS=%~1

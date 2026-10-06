@@ -2,12 +2,12 @@
 setlocal
 
 :: Builds qwen3.dll (+ ggml backend DLLs) as Debug AND RelWithDebInfo into build\bin\<Config>\,
-:: incrementally. Unlike build.bat this never wipes build\.
+:: incrementally. Unlike build.bat this never wipes anything (its own build_win dir, separate from build.bat's build).
 :: Usage: build_win.bat [Debug|RelWithDebInfo]   (default: both). Then run copy_dll.bat.
 
 set SCRIPT_DIR=%~dp0
 if "%SCRIPT_DIR:~-1%"=="\" set SCRIPT_DIR=%SCRIPT_DIR:~0,-1%
-set BUILD_DIR=%SCRIPT_DIR%\build
+set BUILD_DIR=%SCRIPT_DIR%\build_win
 set CMAKE=cmake
 set CONFIGS=Debug RelWithDebInfo
 if not "%~1"=="" set CONFIGS=%~1
